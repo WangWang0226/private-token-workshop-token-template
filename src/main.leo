@@ -9,12 +9,12 @@ TODO:
        network fees and not conflict with any existing program on the network
         - ex) `dogecoin_token.aleo`
     2. Change the name of the program below
-        - ex) `program dogecoin_token.aleo {`
+        - ex) `program dogecoin_token.aleo {`a
     3. Change the "program" field in the program.json file to match the name of your new program
 
 ====================================================================================================================  
 */
-program token.aleo {
+program leontoken.aleo {
     mapping balances: address => u64;  // On-chain mapping between user addresses and public token balances
 
     record Token {
@@ -22,12 +22,8 @@ program token.aleo {
         amount: u64,     // The token amount
     }
 
-    @noupgrade
+    @admin(address="aleo1wjpa3k99x5hd66szf7f8kpunxfaja70e7fzvgu467j4r46llx5pq2ufvlf")
     async constructor() {}
-
-
-
-
 
     /*
     ====================================================================================================================
@@ -54,6 +50,7 @@ program token.aleo {
         let address_check : Future = workshop_ofac.aleo/address_check(recipient);
 
         // TODO: Fill in here
+        return mint_public_onchain(recipient, amount, address_check);
     }
 
     async function mint_public_onchain(
@@ -64,10 +61,11 @@ program token.aleo {
         address_check.await();
 
         // TODO: Fill in here
+        let current_balance: u64 = balances.get_or_use(recipient, 0u64);
+        let new_balance: u64 = current_balance + amount;
+        balances.set(recipient, new_balance);
+
     }
-
-
-
 
 
     /*
@@ -92,12 +90,19 @@ program token.aleo {
         private amount: u64
     ) -> (Token,Future) {
         // TODO: Fill in here
+        let address_check: Future = workshop_ofac.aleo/address_check(recipient);
+        let new_token: Token = Token {
+            owner: recipient,
+            amount: amount,
+        };
+        return (new_token, mint_private_onchain(address_check));
 
     }
     async function mint_private_onchain(
         address_check : Future
     ){
         // TODO: Fill in here
+        address_check.await();
     }
 
 
@@ -129,6 +134,9 @@ program token.aleo {
         public amount: u64
     ) -> Future {
         // TODO: Fill in here
+        let sender: address = self.signer;
+        let address_check: Future = workshop_ofac.aleo/address_check(recipient);
+        return transfer_public_onchain(sender, recipient, amount, address_check);
     }
     async function transfer_public_onchain(
         public sender: address, 
@@ -137,6 +145,14 @@ program token.aleo {
         public address_check : Future
     ) {
         // TODO: Fill in here
+        address_check.await();
+        let sender_balance: u64 = balances.get_or_use(sender, 0u64);
+        let recipient_balance: u64 = balances.get_or_use(recipient, 0u64);
+
+        assert(sender_balance >= amount);
+
+        balances.set(sender, sender_balance - amount);
+        balances.set(recipient, recipient_balance + amount);
     }
 
 
@@ -170,12 +186,30 @@ program token.aleo {
         private amount: u64
     ) -> (Token, Token, Future) {
         // TODO: Fill in here
+        assert(sender.amount >= amount);
+
+        let to_recipient: Token = Token {
+            owner: recipient,
+            amount: amount,
+        };
+
+        let remaining: u64 = sender.amount - amount;
+        let to_sender: Token = Token {
+            owner: sender.owner,
+            amount: remaining,
+        };
+
+        let address_check: Future = workshop_ofac.aleo/address_check(recipient);
+
+        return (to_recipient, to_sender, transfer_private_onchain(address_check));
+
     }
 
     async function transfer_private_onchain(
         public address_check : Future
     ){
         // TODO: Fill in here
+        address_check.await();
     }
 
 
